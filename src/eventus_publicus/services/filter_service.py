@@ -9,31 +9,32 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from eventus_publicus.providers.eventbrite import load_eventbrite_config
 from eventus_publicus.schemas.event import Event
+from eventus_publicus.utils.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
 class BlacklistConfig(BaseModel):
-    """Pydantic model representing external blacklist configuration."""
+    """Pydantic model representing external blacklist rules."""
 
     titles: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
 
 
-def _normalize(text: str) -> str:
-    """Normalize text for bulletproof comparison.
+class ProviderConfig(BaseModel):
+    """Pydantic model representing Eventbrite provider configuration."""
 
-    - Lowercases text.
-    - Replaces all bullet/dash variations with standard spaces.
-    - Collapses multiple whitespace characters into a single space.
-    """
+    blacklists: BlacklistConfig = Field(default_factory=BlacklistConfig)
+
+
+def _normalize(text: str) -> str:
+    """Normalize text for bulletproof comparison."""
     if not text:
         return ""
 
-    # Replace unicode bullets, dashes, hyphens with spaces
     normalized = re.sub(r"[·\-\—\|]", " ", text)
-    # Lowercase and collapse all whitespace
     return re.sub(r"\s+", " ", normalized.lower()).strip()
 
 
@@ -45,11 +46,9 @@ def _matches_pattern(text: str, pattern: str) -> bool:
     if not norm_pattern:
         return False
 
-    # If there are no wildcards, check if the pattern is contained within text
     if "*" not in norm_pattern:
         return norm_pattern in norm_text
 
-    # Split pattern by '*' to check sequential occurrence of sub-phrases
     chunks = [c.strip() for c in norm_pattern.split("*") if c.strip()]
 
     if not chunks:
@@ -68,33 +67,31 @@ def _matches_pattern(text: str, pattern: str) -> bool:
 class EventFilterService:
     """Evaluates events against configured title and location blacklists."""
 
-    def __init__(self, config_path: Path | None = None) -> None:
-        if config_path is None:
-            current_dir = Path(__file__).resolve().parent
-            config_path = (
-                current_dir.parent.parent.parent / "config" / "blacklists.json"
-            )
-
+    def __init__(self, config: AppConfig | None = None) -> None:
+        self.config = config
         self.titles: list[str] = []
         self.locations: list[str] = []
 
-        self._load_config(config_path)
+        self._load_config()
 
-    def _load_config(self, path: Path) -> None:
-        """Load and compile blacklists from JSON configuration file."""
-        if not path.exists():
+    def _load_config(self) -> None:
+        """Load and compile blacklists from eventbrite provider config."""
+        current_dir = Path(__file__).resolve().parent
+        config_path = current_dir.parent.parent.parent / "config" / "eventbrite.jsonc"
+
+        if not config_path.exists():
             logger.warning(
                 "Blacklist config not found at %s. No filtering will occur.",
-                path,
+                config_path,
             )
             return
 
         try:
-            content = path.read_text(encoding="utf-8")
-            config = BlacklistConfig.model_validate_json(content)
+            raw_data = load_eventbrite_config()
+            provider_config = ProviderConfig.model_validate(raw_data)
 
-            self.titles = config.titles
-            self.locations = config.locations
+            self.titles = provider_config.blacklists.titles
+            self.locations = provider_config.blacklists.locations
             logger.info(
                 "Loaded %d title rules and %d location rules from blacklist config.",
                 len(self.titles),
@@ -103,7 +100,7 @@ class EventFilterService:
         except Exception:
             logger.exception(
                 "Failed to parse blacklist configuration file from %s",
-                path,
+                config_path,
             )
 
     def should_filter_out(self, event: Event) -> bool:
@@ -111,7 +108,6 @@ class EventFilterService:
         title = event.title or ""
         location = event.location or ""
 
-        # 1. Check title blacklists
         for pattern in self.titles:
             if _matches_pattern(title, pattern):
                 logger.info(
@@ -121,7 +117,6 @@ class EventFilterService:
                 )
                 return True
 
-        # 2. Check location blacklists
         for pattern in self.locations:
             if _matches_pattern(location, pattern):
                 logger.info(

@@ -15,13 +15,10 @@ from eventus_publicus.providers.eventbrite import (
 from eventus_publicus.readers.list_reader import parse_html_events_to_dict
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
+from eventus_publicus.utils.config import AppConfig
 from eventus_publicus.writers.markdown_writer import generate_markdown_report
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s",
-)
-logger = logging.getLogger("eventus_publicus.services.pipeline")
+logger = logging.getLogger(__name__)
 
 
 async def scrape_and_enrich_events_for_date(
@@ -29,22 +26,13 @@ async def scrape_and_enrich_events_for_date(
     date: str,
     *,
     enrich: bool = True,
+    config: AppConfig | None = None,
 ) -> dict[str, list[Event]]:
-    """Construct search URL, scrape list, parse events, and optionally enrich details.
-
-    Args:
-        page_number: The target pagination page number.
-        date: The target event date (YYYY-MM-DD).
-        enrich: Flag to control whether to trigger downstream enrichment.
-
-    Returns:
-        A dictionary containing the list of Events.
-
-    """
+    """Construct search URL, scrape list, parse events, and optionally enrich."""
     target_url = build_event_list_url(page_number, date)
     logger.info("Generated target event list URL: %s", target_url)
 
-    html_content = await fetch_page_content(target_url, timeout=25000)
+    html_content = await fetch_page_content(target_url, timeout=25000, config=config)
     if not html_content:
         logger.warning(
             "Failed to fetch HTML content for listing URL: %s",
@@ -57,7 +45,8 @@ async def scrape_and_enrich_events_for_date(
     last_segment = path_segments[-1] if path_segments else "index"
 
     saved_file_path = (
-        get_temporary_directory() / f"{last_segment}-{date}-page{page_number}.html"
+        get_temporary_directory(config=config)
+        / f"{last_segment}-{date}-page{page_number}.html"
     )
 
     saved_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,7 +68,7 @@ async def scrape_and_enrich_events_for_date(
         logger.info("Enrichment is deactivated by flag. Returning base event list.")
         return events_dict
 
-    return await enrich_event_details(events_dict)
+    return await enrich_event_details(events_dict, config=config)
 
 
 async def main() -> None:
@@ -104,7 +93,6 @@ async def main() -> None:
 
     generate_markdown_report(events_data=result_dict)
 
-    # Save the enriched event list dictionary to a JSON temporary file
     json_file_path = (
         get_temporary_directory() / f"events-calgary-{target_date}-page{page_num}.json"
     )

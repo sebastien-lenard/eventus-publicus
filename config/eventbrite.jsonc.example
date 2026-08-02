@@ -1,0 +1,11 @@
+{
+    // Eventbrite Provider Configuration & Filtering Blacklists
+    "blacklists": {
+        "titles": [
+            "I don't want this event*"
+        ],
+        "locations": [
+            "Calgary · place I don't want to go*"
+        ]
+    }
+}

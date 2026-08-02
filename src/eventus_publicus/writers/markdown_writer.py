@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from eventus_publicus.providers.eventbrite import get_report_filenames
 from eventus_publicus.schemas.event import Event
+from eventus_publicus.utils.config import AppConfig
 from eventus_publicus.utils.date_utils import get_day_initial
 
 logger = logging.getLogger(__name__)
@@ -59,9 +60,13 @@ def _format_description_with_dropdown(
     )
 
 
-def generate_markdown_report(*, events_data: dict[str, list[Event]]) -> None:
+def generate_markdown_report(
+    *,
+    events_data: dict[str, list[Event]],
+    config: AppConfig | None = None,
+) -> None:
     """Generate and write the sorted markdown event report to downloads folder."""
-    filename, _ = get_report_filenames("calgary")
+    filename, _ = get_report_filenames("calgary", config=config)
     download_dir = get_downloads_folder()
     output_path = download_dir / filename
 

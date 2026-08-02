@@ -18,8 +18,10 @@ from rich.progress import (
 )
 
 from eventus_publicus.services.date_range_pipeline import (
+    PipelineOptions,
     scrape_events_for_date_range,
 )
+from eventus_publicus.utils.config import get_config
 from eventus_publicus.utils.logging_config import setup_logging
 from eventus_publicus.writers.html_writer import generate_html_report
 from eventus_publicus.writers.markdown_writer import generate_markdown_report
@@ -124,6 +126,8 @@ def main(
     numeric_level = getattr(logging, log_level.upper(), logging.WARNING)
     setup_logging(level=numeric_level)
 
+    config = get_config()
+
     default_start, default_end = _get_default_date_range()
     start_date = start or default_start
     end_date = end or default_end
@@ -132,7 +136,6 @@ def main(
         err_msg = f"Start date ({start_date}) cannot be after end date ({end_date})."
         raise click.BadParameter(err_msg)
 
-    # Echo active parameters before running
     click.echo(f"📅 Date Range: {start_date} to {end_date}")
     click.echo(f"📦 Cache: {'Enabled' if cache else 'Disabled'}")
     click.echo(f"🔍 Enrichment: {'Enabled' if enrich else 'Disabled'}")
@@ -178,9 +181,12 @@ def main(
             result = await scrape_events_for_date_range(
                 start_date,
                 end_date,
-                enrich=enrich,
-                use_cache=cache,
-                on_progress=update_progress,
+                options=PipelineOptions(
+                    enrich=enrich,
+                    use_cache=cache,
+                    on_progress=update_progress,
+                ),
+                config=config,
             )
             progress.update(
                 task,
@@ -199,8 +205,8 @@ def main(
         )
         return
 
-    generate_markdown_report(events_data=full_result_dict)
-    generate_html_report(events_data=full_result_dict)
+    generate_markdown_report(events_data=full_result_dict, config=config)
+    generate_html_report(events_data=full_result_dict, config=config)
 
     click.echo(f"\n✨ Success! Processed {len(events)} events.")
     click.echo("📁 Reports successfully saved to your Downloads folder.")

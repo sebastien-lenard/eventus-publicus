@@ -29,10 +29,21 @@ dependencies = [
 [project.scripts]
 eventus-publicus = "eventus_publicus.__main__:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.1",
+]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "e2e: end to end tests (slower)",
+    "integration: integration and api tests (slower)",
+    "unit: unit tests (faster)"
+]
 
 [tool.ruff]
 line-length = 88

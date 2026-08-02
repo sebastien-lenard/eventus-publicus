@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Configuration module using Pydantic-Settings to validate environment variables."""
 
+from functools import lru_cache
+from typing import Any
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,5 +23,19 @@ class AppConfig(BaseSettings):
     )
 
 
-# Global configuration instance
-settings = AppConfig()
+def create_config(**kwargs: Any) -> AppConfig:  # noqa: ANN401
+    """Instantiate a fresh configuration payload for runtime or isolation testing."""
+    return AppConfig(**kwargs)
+
+
+@lru_cache(maxsize=1)
+def get_config() -> AppConfig:
+    """Retrieve the globally cached configuration configuration.
+
+    WARNING: Should either be called in cli.py or inside class methods, not outside, so
+    as to make tests not interfering with production directories.
+    """
+    return create_config()
+
+
+settings = get_config()

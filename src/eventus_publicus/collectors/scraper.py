@@ -6,7 +6,6 @@
 
 import asyncio
 import logging
-import random
 import sys
 import time
 from collections.abc import Awaitable, Callable
@@ -24,14 +23,11 @@ from eventus_publicus.providers.eventbrite import (
     is_allowed_domain,
     smart_wait_for_page,
 )
+from eventus_publicus.utils.config import AppConfig
+from eventus_publicus.utils.math_utils import get_backoff_jitter
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger("eventus_publicus.scraper")
+logger = logging.getLogger(__name__)
 
-# Minimum required interval in seconds between requests to the same domain
 MIN_REQUEST_INTERVAL_SECONDS = 1.0
 
 P = ParamSpec("P")
@@ -63,9 +59,8 @@ def async_retry(
                         )
                         raise
 
-                    # Calculate exponential backoff
                     exponential = base_delay * (2 ** (attempt - 1))
-                    jitter = random.uniform(0, 1.0)  # noqa: S311
+                    jitter = get_backoff_jitter(0.0, 1.0)
                     sleep_time = min(max_delay, exponential + jitter)
 
                     logger.warning(
@@ -95,7 +90,7 @@ class DomainRateLimiter:
         self._lock = asyncio.Lock()
 
     async def wait_if_needed(self, url: str) -> None:
-        """Check the last request time for domain and sleep if called quickly."""
+        """Check last request time for domain and sleep if called quickly."""
         parsed_url = urlparse(url)
         domain = parsed_url.netloc.lower()
 
@@ -116,16 +111,14 @@ class DomainRateLimiter:
                 )
                 await asyncio.sleep(wait_time)
 
-            # Update the last request timestamp after sleeping
             self._last_request_times[domain] = time.monotonic()
 
 
-# Global rate limiter instance
 _rate_limiter = DomainRateLimiter()
 
 
 def _setup_page_event_listeners(page: Page) -> None:
-    """Attach logging event listeners to Playwright page, silencing aborts."""
+    """Attach logging event listeners to Playwright page."""
     page.on(
         "request",
         lambda req: logger.debug("NETWORK REQUEST: %s", req.url),
@@ -140,7 +133,6 @@ def _setup_page_event_listeners(page: Page) -> None:
     )
 
     def handle_request_failed(req: Request) -> None:
-        # Ignore net::ERR_FAILED caused by our intentional route aborts
         if req.failure and "net::ERR_FAILED" in req.failure:
             logger.debug("INTENTIONALLY BLOCKED REQUEST: %s", req.url)
             return
@@ -154,7 +146,7 @@ def _setup_page_event_listeners(page: Page) -> None:
 
 
 async def _setup_network_interceptors(page: Page) -> None:
-    """Block images, media, fonts, stylesheets, and external domains safely."""
+    """Block unneeded resource types and external domains safely."""
 
     async def route_handler(route: Route) -> None:
         try:
@@ -163,12 +155,10 @@ async def _setup_network_interceptors(page: Page) -> None:
             parsed = urlparse(url)
             domain = parsed.netloc.lower()
 
-            # 1. Block resource types we do not need (including stylesheets)
             if req.resource_type in {"image", "media", "font", "stylesheet"}:
                 await route.abort()
                 return
 
-            # 2. Block external domains not belonging to allowed provider
             if domain and not is_allowed_domain(domain):
                 await route.abort()
                 return
@@ -199,7 +189,7 @@ async def _apply_antibot_overrides(page: Page) -> None:
     )
 
 
-def _save_html_to_temp(url: str, content: str) -> None:
+def _save_html_to_temp(url: str, content: str, config: AppConfig | None = None) -> None:
     """Save fetched HTML content into the provider temporary directory."""
     if not content:
         return
@@ -208,7 +198,7 @@ def _save_html_to_temp(url: str, content: str) -> None:
         last_segment = clean_url.rstrip("/").split("/")[-1]
         filename = f"{last_segment or 'index'}.html"
 
-        tmp_dir = get_temporary_directory()
+        tmp_dir = get_temporary_directory(config=config)
 
         file_path = tmp_dir / filename
         file_path.write_text(content, encoding="utf-8")
@@ -217,7 +207,12 @@ def _save_html_to_temp(url: str, content: str) -> None:
         logger.exception("Failed to save HTML content to temporary directory")
 
 
-async def _fetch_with_context(url: str, timeout: int, context: BrowserContext) -> str:
+async def _fetch_with_context(
+    url: str,
+    timeout: int,
+    context: BrowserContext,
+    config: AppConfig | None = None,
+) -> str:
     """Execute page fetching lifecycle using a shared Playwright context."""
     page = await context.new_page()
     try:
@@ -242,11 +237,10 @@ async def _fetch_with_context(url: str, timeout: int, context: BrowserContext) -
                 "Navigation response object was None (potential redirect/block).",
             )
 
-        # Execute provider-specific smart wait for DOM content
-        await smart_wait_for_page(page, url)
+        await smart_wait_for_page(page, url, config=config)
 
         content = await page.content()
-        _save_html_to_temp(url, content)
+        _save_html_to_temp(url, content, config=config)
 
         await page.unroute_all(behavior="ignoreErrors")
         return content
@@ -259,28 +253,15 @@ async def fetch_page_content(
     url: str,
     timeout: int = 15000,
     context: BrowserContext | None = None,
+    config: AppConfig | None = None,
 ) -> str:
-    """Fetch HTML content of a web page asynchronously with optimized waits.
-
-    Enforces domain rate-limiting based on `MIN_REQUEST_INTERVAL_SECONDS`
-    and automatically retries transient failures using exponential backoff with jitter.
-
-    Args:
-        url: The target web page URL.
-        timeout: Maximum time to wait for the page to load in milliseconds.
-        context: Optional shared Playwright BrowserContext for connection reuse.
-
-    Returns:
-        The HTML source string of the page, or an empty string on failure.
-
-    """
+    """Fetch HTML content of a web page asynchronously with optimized waits."""
     logger.debug("-> Entering fetch_page_content() for URL: %s", url)
 
-    # Enforce domain rate limit before initiating connection
     await _rate_limiter.wait_if_needed(url)
 
     if context is not None:
-        return await _fetch_with_context(url, timeout, context)
+        return await _fetch_with_context(url, timeout, context, config=config)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -302,7 +283,7 @@ async def fetch_page_content(
         )
 
         try:
-            content = await _fetch_with_context(url, timeout, ctx)
+            content = await _fetch_with_context(url, timeout, ctx, config=config)
             logger.debug("<- Exiting fetch_page_content() successfully.")
             return content
         finally:
@@ -310,12 +291,7 @@ async def fetch_page_content(
 
 
 async def test_playwright_basic() -> bool:
-    """Test if asynchronous Playwright functions properly using a basic URL.
-
-    Returns:
-        True if the test passes, False otherwise.
-
-    """
+    """Test if asynchronous Playwright functions properly using a basic URL."""
     test_url = "https://httpbin.org/html"
     logger.info("Running basic connectivity test on %s...", test_url)
 

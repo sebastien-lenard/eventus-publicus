@@ -4,6 +4,8 @@
 
 """Provides specific configurations, selectors, and helper functions for Eventbrite."""
 
+import json
+import re
 import tempfile
 from contextlib import suppress
 from pathlib import Path
@@ -11,12 +13,10 @@ from pathlib import Path
 from playwright.async_api import Page
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-from eventus_publicus.utils.config import settings
+from eventus_publicus.utils.config import AppConfig, get_config
 
-# Provider identifier constant
 PROVIDER_NAME = "eventbrite"
 
-# Base URL & Path Constants
 URL_BASE = "https://www.eventbrite.ca"
 URL_PATH = "/d/canada--calgary/all-events/"
 
@@ -30,19 +30,22 @@ def is_allowed_domain(domain: str) -> bool:
     )
 
 
-async def smart_wait_for_page(page: Page, url: str) -> None:
+async def smart_wait_for_page(
+    page: Page,
+    url: str,
+    config: AppConfig | None = None,
+) -> None:
     """Execute smart wait using resilient substring CSS selectors based on page type."""
-    timeout = settings.playwright_wait_timeout_ms
+    cfg = config or get_config()
+    timeout = cfg.playwright_wait_timeout_ms
 
     if "/e/" in url:
-        # Event detail page: wait for Overview summary container
         with suppress(PlaywrightTimeoutError):
             await page.wait_for_selector(
                 "div[class*='Overview-module-scss-module__'][class*='summary']",
                 timeout=timeout,
             )
     else:
-        # Event listing page: wait for card list or pagination elements
         with suppress(PlaywrightTimeoutError):
             await page.wait_for_selector(
                 "ul[class*='SearchResultPanelContentEventCardList-"
@@ -53,9 +56,10 @@ async def smart_wait_for_page(page: Page, url: str) -> None:
             )
 
 
-def get_temporary_directory() -> Path:
+def get_temporary_directory(config: AppConfig | None = None) -> Path:
     """Return the platform-specific temporary directory path for Eventbrite data."""
-    subfolder_pattern = settings.tmp_subfolder
+    cfg = config or get_config()
+    subfolder_pattern = cfg.tmp_subfolder
     folder_name = subfolder_pattern.format(provider=PROVIDER_NAME)
     tmp_dir = Path(tempfile.gettempdir()) / folder_name
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -89,9 +93,13 @@ def get_event_list_card_selectors() -> tuple[str, str]:
     return container_selector, card_selector
 
 
-def get_cache_file_path(date_str: str, location: str = "calgary") -> Path:
+def get_cache_file_path(
+    date_str: str,
+    location: str = "calgary",
+    config: AppConfig | None = None,
+) -> Path:
     """Construct and return the accumulated JSON cache file path for date/location."""
-    tmp_dir = get_temporary_directory()
+    tmp_dir = get_temporary_directory(config=config)
     return tmp_dir / f"events-{location}-{date_str}-accumulated.json"
 
 
@@ -100,9 +108,13 @@ def build_event_list_url(page_number: int, date: str) -> str:
     return f"{URL_BASE}{URL_PATH}?page={page_number}&start_date={date}&end_date={date}"
 
 
-def get_report_filenames(location: str = "calgary") -> tuple[str, str]:
+def get_report_filenames(
+    location: str = "calgary",
+    config: AppConfig | None = None,
+) -> tuple[str, str]:
     """Return default filenames for Markdown and HTML event reports."""
-    template = settings.output_filename
+    cfg = config or get_config()
+    template = cfg.output_filename
     md_filename = template.format(
         provider=PROVIDER_NAME,
         location=location,
@@ -114,3 +126,27 @@ def get_report_filenames(location: str = "calgary") -> tuple[str, str]:
         ext="html",
     )
     return md_filename, html_filename
+
+
+def load_eventbrite_config(_config: AppConfig | None = None) -> dict:
+    """Load and parse eventbrite.jsonc configuration file supporting JSONC comments."""
+    current_dir = Path(__file__).resolve().parent
+    project_root = current_dir.parent.parent.parent
+    config_path = project_root / "config" / "eventbrite.jsonc"
+
+    if not config_path.exists():
+        return {}
+
+    try:
+        content = config_path.read_text(encoding="utf-8")
+        # Strip C-style comments (// ...) and block comments (/* ... */)
+        content_cleaned = re.sub(r"^\s*//.*$", "", content, flags=re.MULTILINE)
+        content_cleaned = re.sub(
+            r"/\*.*?\*/",
+            "",
+            content_cleaned,
+            flags=re.DOTALL,
+        )
+        return json.loads(content_cleaned)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}

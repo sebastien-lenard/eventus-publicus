@@ -12,8 +12,6 @@ from bs4 import BeautifulSoup
 
 from eventus_publicus.providers.eventbrite import get_description_overview_selector
 
-# Configure logger for output instead of print
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 

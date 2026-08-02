@@ -1,7 +1,7 @@
 # src/eventus-publicus/readers/list_reader.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
-"""Scan HTML event listing and generate a structured Event dictionary."""
+"""Scan HTML event listing and generate structured Event dictionaries."""
 
 import logging
 import re
@@ -16,17 +16,11 @@ from eventus_publicus.providers.eventbrite import (
 )
 from eventus_publicus.schemas.event import Event
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def check_page_status(html_path: Path) -> tuple[bool, int, int]:
-    """Check if page has no search results, and extract pagination info.
-
-    Returns:
-        (has_no_results, current_page, total_pages)
-
-    """
+    """Check if page has no search results and extract pagination info."""
     try:
         content = html_path.read_text(encoding="utf-8")
     except OSError:
@@ -40,7 +34,6 @@ def check_page_status(html_path: Path) -> tuple[bool, int, int]:
     current_page = 1
     total_pages = 1
 
-    # Use provider pagination selector for resilient targeting
     pagination_elem = soup.select_one(get_pagination_selector())
     if pagination_elem:
         span_elem = pagination_elem.find("span", {"data-testid": "pagination-string"})
