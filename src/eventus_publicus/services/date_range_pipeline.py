@@ -6,12 +6,15 @@
 import asyncio
 import json
 import logging
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from eventus_publicus.providers.eventbrite import (
+    get_cache_file_path,
+    get_temporary_directory,
+)
 from eventus_publicus.readers.list_reader import check_page_status
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
@@ -60,11 +63,10 @@ def _daterange(start_date: str, end_date: str) -> list[str]:
 
 async def _load_cached_events(
     date_str: str,
-    tmp_dir: Path,
     location: str = "calgary",
 ) -> list[Event] | None:
     """Attempt to load cached events for a given date and location."""
-    date_json_path = tmp_dir / f"events-{location}-{date_str}-accumulated.json"
+    date_json_path = get_cache_file_path(date_str, location)
     if date_json_path.exists():
         logger.info(
             "Loading cached events for date %s (%s) from %s",
@@ -181,17 +183,17 @@ async def scrape_events_for_date_range(
     all_accumulated_events: list[Event] = []
     dates = _daterange(start_date, end_date)
 
-    tmp_dir = Path(tempfile.gettempdir()) / "eventbrite-perso-reader"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir = get_temporary_directory()
     filter_service = EventFilterService()
     total_dates = len(dates)
+    location = "calgary"
 
     for date_idx, date_str in enumerate(dates, start=1):
         if on_progress:
             on_progress(date_str, 1, 1, total_dates, date_idx)
 
         if use_cache:
-            cached = await _load_cached_events(date_str, tmp_dir)
+            cached = await _load_cached_events(date_str, location)
             if cached is not None:
                 all_accumulated_events.extend(cached)
                 continue
@@ -211,8 +213,7 @@ async def scrape_events_for_date_range(
         logger.info("Completed %s: Found %d total events.", date_str, len(date_events))
         all_accumulated_events.extend(date_events)
 
-        location_slug = "calgary"
-        date_json_path = tmp_dir / f"events-{location_slug}-{date_str}-accumulated.json"
+        date_json_path = get_cache_file_path(date_str, location)
         try:
             serialized = {"events": [ev.model_dump() for ev in date_events]}
             date_json_path.write_text(

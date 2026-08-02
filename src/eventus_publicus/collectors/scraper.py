@@ -8,19 +8,22 @@ import asyncio
 import logging
 import random
 import sys
-import tempfile
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from functools import wraps
-from pathlib import Path
 from typing import ParamSpec, TypeVar
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 from playwright.async_api import BrowserContext, Page, Request, Route, async_playwright
 from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+from eventus_publicus.providers.eventbrite import (
+    get_temporary_directory,
+    is_allowed_domain,
+    smart_wait_for_page,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -165,10 +168,8 @@ async def _setup_network_interceptors(page: Page) -> None:
                 await route.abort()
                 return
 
-            # 2. Block external domains not belonging to Eventbrite
-            if domain and not any(
-                allowed in domain for allowed in ["eventbrite.ca", "eventbrite.com"]
-            ):
+            # 2. Block external domains not belonging to allowed provider
+            if domain and not is_allowed_domain(domain):
                 await route.abort()
                 return
 
@@ -199,7 +200,7 @@ async def _apply_antibot_overrides(page: Page) -> None:
 
 
 def _save_html_to_temp(url: str, content: str) -> None:
-    """Save fetched HTML content into the OS temporary directory."""
+    """Save fetched HTML content into the provider temporary directory."""
     if not content:
         return
     try:
@@ -207,8 +208,7 @@ def _save_html_to_temp(url: str, content: str) -> None:
         last_segment = clean_url.rstrip("/").split("/")[-1]
         filename = f"{last_segment or 'index'}.html"
 
-        tmp_dir = Path(tempfile.gettempdir()) / "eventbrite-perso-reader"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_dir = get_temporary_directory()
 
         file_path = tmp_dir / filename
         file_path.write_text(content, encoding="utf-8")
@@ -242,28 +242,8 @@ async def _fetch_with_context(url: str, timeout: int, context: BrowserContext) -
                 "Navigation response object was None (potential redirect/block).",
             )
 
-        # SMART WAIT: Use resilient substring CSS selectors to wait for content
-        if "/e/" in url:
-            # Event detail page: wait for Overview summary container
-            try:
-                await page.wait_for_selector(
-                    "div[class*='Overview-module-scss-module__'][class*='summary']",
-                    timeout=5000,
-                )
-            except PlaywrightTimeoutError:
-                logger.debug("Event summary element selector timed out.")
-        else:
-            # Event listing page: wait for card list or pagination elements
-            try:
-                await page.wait_for_selector(
-                    "ul[class*='SearchResultPanelContentEventCardList-module__'], "
-                    "li[class*='Pagination-module__search-pagination__navigation-minimal']",
-                    timeout=5000,
-                )
-            except PlaywrightTimeoutError:
-                logger.debug(
-                    "Listing page conditional element selectors timed out.",
-                )
+        # Execute provider-specific smart wait for DOM content
+        await smart_wait_for_page(page, url)
 
         content = await page.content()
         _save_html_to_temp(url, content)

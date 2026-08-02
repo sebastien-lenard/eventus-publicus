@@ -10,6 +10,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from eventus_publicus.providers.eventbrite import get_description_overview_selector
+
 # Configure logger for output instead of print
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -62,9 +64,10 @@ def parse_event_page_from_html(soup: BeautifulSoup) -> dict:
             continue
 
     description_html = ""
+    overview_selector = get_description_overview_selector()
     overview_div = soup.find(
         "div",
-        class_=lambda c: c and "Overview-module-scss-module__" in c and "summary" in c,
+        class_=lambda c: bool(c and overview_selector in c and "summary" in str(c)),
     )
     if overview_div:
         description_html = "".join(str(child) for child in overview_div.contents)

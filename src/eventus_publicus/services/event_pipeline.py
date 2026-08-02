@@ -6,10 +6,12 @@
 import asyncio
 import json
 import logging
-import tempfile
-from pathlib import Path
 
 from eventus_publicus.collectors.scraper import fetch_page_content
+from eventus_publicus.providers.eventbrite import (
+    build_event_list_url,
+    get_temporary_directory,
+)
 from eventus_publicus.readers.list_reader import parse_html_events_to_dict
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
@@ -20,25 +22,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s",
 )
 logger = logging.getLogger("eventus_publicus.services.pipeline")
-
-
-# Static URL components constants
-URL_BASE = "https://www.eventbrite.ca"
-URL_PATH = "/d/canada--calgary/all-events/"
-
-
-def build_event_list_url(page_number: int, date: str) -> str:
-    """Construct and return the event listing URL using static constants.
-
-    Args:
-        page_number: The target pagination number (e.g., 1).
-        date: The target date string in YYYY-MM-DD format (e.g., '2027-12-01').
-
-    Returns:
-        The fully formatted event search URL string.
-
-    """
-    return f"{URL_BASE}{URL_PATH}?page={page_number}&start_date={date}&end_date={date}"
 
 
 async def scrape_and_enrich_events_for_date(
@@ -74,9 +57,7 @@ async def scrape_and_enrich_events_for_date(
     last_segment = path_segments[-1] if path_segments else "index"
 
     saved_file_path = (
-        Path(tempfile.gettempdir())
-        / "eventbrite-perso-reader"
-        / f"{last_segment}-{date}-page{page_number}.html"
+        get_temporary_directory() / f"{last_segment}-{date}-page{page_number}.html"
     )
 
     saved_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,9 +105,9 @@ async def main() -> None:
     generate_markdown_report(events_data=result_dict)
 
     # Save the enriched event list dictionary to a JSON temporary file
-    tmp_dir = Path(tempfile.gettempdir()) / "eventbrite-perso-reader"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    json_file_path = tmp_dir / f"events-calgary-{target_date}-page{page_num}.json"
+    json_file_path = (
+        get_temporary_directory() / f"events-calgary-{target_date}-page{page_num}.json"
+    )
 
     try:
         serialized_data = {

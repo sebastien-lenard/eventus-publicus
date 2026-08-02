@@ -9,6 +9,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
+from eventus_publicus.providers.eventbrite import (
+    check_search_status,
+    get_event_list_card_selectors,
+    get_pagination_selector,
+)
 from eventus_publicus.schemas.event import Event
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -30,15 +35,13 @@ def check_page_status(html_path: Path) -> tuple[bool, int, int]:
     soup = BeautifulSoup(content, "html.parser")
     text_content = soup.get_text()
 
-    has_no_results = "Nothing matched your search" in text_content
+    has_no_results = check_search_status(text_content)
 
     current_page = 1
     total_pages = 1
 
-    # Use CSS selector with substring matching for resilient pagination targeting
-    pagination_elem = soup.select_one(
-        "li[class*='Pagination-module__search-pagination__navigation-minimal']",
-    )
+    # Use provider pagination selector for resilient targeting
+    pagination_elem = soup.select_one(get_pagination_selector())
     if pagination_elem:
         span_elem = pagination_elem.find("span", {"data-testid": "pagination-string"})
         if span_elem:
@@ -107,19 +110,14 @@ def parse_html_events(
 
     soup = BeautifulSoup(content, "html.parser")
 
-    # Use CSS selector with substring matching for resilient event list container
-    event_list = soup.select_one(
-        "ul[class*='SearchResultPanelContentEventCardList-module__eventList']",
-    )
+    container_selector, card_selector = get_event_list_card_selectors()
+    event_list = soup.select_one(container_selector)
 
     if not event_list or not isinstance(event_list, Tag):
         logger.warning("Target event list container not found in HTML.")
         return []
 
-    # Use CSS selector with substring matching for event card elements
-    cards = event_list.select(
-        "div[class*='SearchResultPanelContentEventCardList-module__map_experiment_event_card']",
-    )
+    cards = event_list.select(card_selector)
 
     return [
         ev
