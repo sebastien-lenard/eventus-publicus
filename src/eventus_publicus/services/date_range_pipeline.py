@@ -16,10 +16,10 @@ from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
-from eventus_publicus.services.event_pipeline import (
+from eventus_publicus.services.filter_service import EventFilterService
+from eventus_publicus.services.page_pipeline import (
     scrape_and_enrich_events_for_date,
 )
-from eventus_publicus.services.filter_service import EventFilterService
 from eventus_publicus.utils.config import AppConfig
 
 logger = logging.getLogger(__name__)

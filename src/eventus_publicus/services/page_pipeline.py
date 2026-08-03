@@ -1,4 +1,4 @@
-# src/eventus_publicus/services/event_pipeline.py
+# src/eventus_publicus/services/page_pipeline.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Pipeline service to construct search URLs, scrape lists, and enrich event data."""
