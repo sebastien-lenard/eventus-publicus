@@ -8,9 +8,9 @@ import json
 import logging
 
 from eventus_publicus.collectors.scraper import fetch_page_content
+from eventus_publicus.parsers.list_reader import parse_html_events_to_dict
 from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider
-from eventus_publicus.readers.list_reader import parse_html_events_to_dict
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
 from eventus_publicus.utils.config import AppConfig

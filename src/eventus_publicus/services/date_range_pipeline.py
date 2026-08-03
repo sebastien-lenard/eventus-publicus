@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from eventus_publicus.parsers.list_reader import check_page_status
 from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider
-from eventus_publicus.readers.list_reader import check_page_status
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
 from eventus_publicus.services.event_pipeline import (

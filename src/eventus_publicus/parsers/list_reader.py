@@ -1,4 +1,4 @@
-# src/eventus_publicus/readers/list_reader.py
+# src/eventus_publicus/parsers/list_reader.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Scan HTML event listing and generate structured Event dictionaries."""
