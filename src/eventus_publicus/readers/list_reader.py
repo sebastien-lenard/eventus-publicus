@@ -9,18 +9,19 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from eventus_publicus.providers.eventbrite import (
-    check_search_status,
-    get_event_list_card_selectors,
-    get_pagination_selector,
-)
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.schemas.event import Event
 
 logger = logging.getLogger(__name__)
 
 
-def check_page_status(html_path: Path) -> tuple[bool, int, int]:
+def check_page_status(
+    html_path: Path,
+    provider: EventProvider | None = None,
+) -> tuple[bool, int, int]:
     """Check if page has no search results and extract pagination info."""
+    active_provider = provider or EventbriteProvider()
     try:
         content = html_path.read_text(encoding="utf-8")
     except OSError:
@@ -29,12 +30,12 @@ def check_page_status(html_path: Path) -> tuple[bool, int, int]:
     soup = BeautifulSoup(content, "html.parser")
     text_content = soup.get_text()
 
-    has_no_results = check_search_status(text_content)
+    has_no_results = active_provider.check_search_status(text_content)
 
     current_page = 1
     total_pages = 1
 
-    pagination_elem = soup.select_one(get_pagination_selector())
+    pagination_elem = soup.select_one(active_provider.get_pagination_selector())
     if pagination_elem:
         span_elem = pagination_elem.find("span", {"data-testid": "pagination-string"})
         if span_elem:
@@ -51,40 +52,15 @@ def check_page_status(html_path: Path) -> tuple[bool, int, int]:
     return has_no_results, current_page, total_pages
 
 
-def parse_event_card(card: Tag, event_date: str | None = None) -> Event | None:
+def parse_event_card(
+    card: Tag,
+    event_date: str | None = None,
+    provider: EventProvider | None = None,
+) -> Event | None:
     """Extract event details from a single event card element into an Event."""
+    active_provider = provider or EventbriteProvider()
     try:
-        first_a = card.find("a")
-        link = first_a.get("href", "") if isinstance(first_a, Tag) else ""
-        if isinstance(link, list):
-            link = link[0] if link else ""
-
-        first_h3 = card.find("h3")
-        title = first_h3.get_text(strip=True) if first_h3 else "Unknown"
-
-        time_text = ""
-        location_text = ""
-        p_tags = card.find_all("p")
-        time_pattern = re.compile(r"\b\d{1,2}(?:\:\d{2})?\s*(?:AM|PM)\b", re.IGNORECASE)
-
-        for i, p in enumerate(p_tags):
-            text = p.get_text(strip=True)
-            match = time_pattern.search(text)
-            if match:
-                time_text = match.group(0).strip()
-
-                if i + 1 < len(p_tags):
-                    location_text = p_tags[i + 1].get_text(strip=True)
-                break
-
-        return Event(
-            date=event_date or "Unknown",
-            time=time_text or "Unknown",
-            location=location_text or "Unknown",
-            title=title,
-            link=str(link),
-        )
-
+        return active_provider.parse_event_card(card, event_date=event_date)
     except Exception:
         logger.exception("Failed to parse card")
         return None
@@ -93,8 +69,10 @@ def parse_event_card(card: Tag, event_date: str | None = None) -> Event | None:
 def parse_html_events(
     html_path: Path,
     event_date: str | None = None,
+    provider: EventProvider | None = None,
 ) -> list[Event]:
     """Scan HTML file and extract Event objects."""
+    active_provider = provider or EventbriteProvider()
     try:
         content = html_path.read_text(encoding="utf-8")
     except OSError:
@@ -103,7 +81,7 @@ def parse_html_events(
 
     soup = BeautifulSoup(content, "html.parser")
 
-    container_selector, card_selector = get_event_list_card_selectors()
+    container_selector, card_selector = active_provider.get_event_list_card_selectors()
     event_list = soup.select_one(container_selector)
 
     if not event_list or not isinstance(event_list, Tag):
@@ -116,16 +94,24 @@ def parse_html_events(
         ev
         for card in cards
         if isinstance(card, Tag)
-        and (ev := parse_event_card(card, event_date=event_date)) is not None
+        and (
+            ev := parse_event_card(
+                card,
+                event_date=event_date,
+                provider=active_provider,
+            )
+        )
+        is not None
     ]
 
 
 def parse_html_events_to_dict(
     html_path: Path,
     event_date: str | None = None,
+    provider: EventProvider | None = None,
 ) -> dict[str, list[Event]]:
     """Scan HTML file and generate a sorted dictionary containing Events."""
-    events = parse_html_events(html_path, event_date=event_date)
+    events = parse_html_events(html_path, event_date=event_date, provider=provider)
     events.sort(key=lambda x: (x.time, x.location, x.title))
     return {"events": events}
 

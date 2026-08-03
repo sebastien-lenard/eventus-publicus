@@ -18,11 +18,8 @@ from bs4 import BeautifulSoup
 from playwright.async_api import BrowserContext, Page, Request, Route, async_playwright
 from playwright.async_api import Error as PlaywrightError
 
-from eventus_publicus.providers.eventbrite import (
-    get_temporary_directory,
-    is_allowed_domain,
-    smart_wait_for_page,
-)
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.utils.config import AppConfig
 from eventus_publicus.utils.math_utils import get_backoff_jitter
 
@@ -145,7 +142,10 @@ def _setup_page_event_listeners(page: Page) -> None:
     page.on("requestfailed", handle_request_failed)
 
 
-async def _setup_network_interceptors(page: Page) -> None:
+async def _setup_network_interceptors(
+    page: Page,
+    provider: EventProvider,
+) -> None:
     """Block unneeded resource types and external domains safely."""
 
     async def route_handler(route: Route) -> None:
@@ -159,7 +159,7 @@ async def _setup_network_interceptors(page: Page) -> None:
                 await route.abort()
                 return
 
-            if domain and not is_allowed_domain(domain):
+            if domain and not provider.is_allowed_domain(domain):
                 await route.abort()
                 return
 
@@ -189,7 +189,12 @@ async def _apply_antibot_overrides(page: Page) -> None:
     )
 
 
-def _save_html_to_temp(url: str, content: str, config: AppConfig | None = None) -> None:
+def _save_html_to_temp(
+    url: str,
+    content: str,
+    provider: EventProvider,
+    config: AppConfig | None = None,
+) -> None:
     """Save fetched HTML content into the provider temporary directory."""
     if not content:
         return
@@ -198,7 +203,7 @@ def _save_html_to_temp(url: str, content: str, config: AppConfig | None = None) 
         last_segment = clean_url.rstrip("/").split("/")[-1]
         filename = f"{last_segment or 'index'}.html"
 
-        tmp_dir = get_temporary_directory(config=config)
+        tmp_dir = provider.get_temporary_directory(config=config)
 
         file_path = tmp_dir / filename
         file_path.write_text(content, encoding="utf-8")
@@ -211,13 +216,14 @@ async def _fetch_with_context(
     url: str,
     timeout: int,
     context: BrowserContext,
+    provider: EventProvider,
     config: AppConfig | None = None,
 ) -> str:
     """Execute page fetching lifecycle using a shared Playwright context."""
     page = await context.new_page()
     try:
         _setup_page_event_listeners(page)
-        await _setup_network_interceptors(page)
+        await _setup_network_interceptors(page, provider)
         await _apply_antibot_overrides(page)
 
         logger.info("Executing page.goto() for: %s", url)
@@ -237,10 +243,10 @@ async def _fetch_with_context(
                 "Navigation response object was None (potential redirect/block).",
             )
 
-        await smart_wait_for_page(page, url, config=config)
+        await provider.smart_wait_for_page(page, url, config=config)
 
         content = await page.content()
-        _save_html_to_temp(url, content, config=config)
+        _save_html_to_temp(url, content, provider, config=config)
 
         await page.unroute_all(behavior="ignoreErrors")
         return content
@@ -253,15 +259,24 @@ async def fetch_page_content(
     url: str,
     timeout: int = 15000,
     context: BrowserContext | None = None,
+    provider: EventProvider | None = None,
     config: AppConfig | None = None,
 ) -> str:
     """Fetch HTML content of a web page asynchronously with optimized waits."""
     logger.debug("-> Entering fetch_page_content() for URL: %s", url)
 
+    active_provider = provider or EventbriteProvider()
+
     await _rate_limiter.wait_if_needed(url)
 
     if context is not None:
-        return await _fetch_with_context(url, timeout, context, config=config)
+        return await _fetch_with_context(
+            url,
+            timeout,
+            context,
+            active_provider,
+            config=config,
+        )
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -283,7 +298,13 @@ async def fetch_page_content(
         )
 
         try:
-            content = await _fetch_with_context(url, timeout, ctx, config=config)
+            content = await _fetch_with_context(
+                url,
+                timeout,
+                ctx,
+                active_provider,
+                config=config,
+            )
             logger.debug("<- Exiting fetch_page_content() successfully.")
             return content
         finally:

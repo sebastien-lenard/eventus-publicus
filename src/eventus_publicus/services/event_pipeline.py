@@ -8,10 +8,8 @@ import json
 import logging
 
 from eventus_publicus.collectors.scraper import fetch_page_content
-from eventus_publicus.providers.eventbrite import (
-    build_event_list_url,
-    get_temporary_directory,
-)
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.readers.list_reader import parse_html_events_to_dict
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
@@ -26,13 +24,20 @@ async def scrape_and_enrich_events_for_date(
     date: str,
     *,
     enrich: bool = True,
+    provider: EventProvider | None = None,
     config: AppConfig | None = None,
 ) -> dict[str, list[Event]]:
     """Construct search URL, scrape list, parse events, and optionally enrich."""
-    target_url = build_event_list_url(page_number, date)
+    active_provider = provider or EventbriteProvider()
+    target_url = active_provider.build_event_list_url(page_number, date)
     logger.info("Generated target event list URL: %s", target_url)
 
-    html_content = await fetch_page_content(target_url, timeout=25000, config=config)
+    html_content = await fetch_page_content(
+        target_url,
+        timeout=25000,
+        provider=active_provider,
+        config=config,
+    )
     if not html_content:
         logger.warning(
             "Failed to fetch HTML content for listing URL: %s",
@@ -45,7 +50,7 @@ async def scrape_and_enrich_events_for_date(
     last_segment = path_segments[-1] if path_segments else "index"
 
     saved_file_path = (
-        get_temporary_directory(config=config)
+        active_provider.get_temporary_directory(config=config)
         / f"{last_segment}-{date}-page{page_number}.html"
     )
 
@@ -56,7 +61,11 @@ async def scrape_and_enrich_events_for_date(
         logger.error("Expected saved HTML file not found at: %s", saved_file_path)
         return {"events": []}
 
-    events_dict = parse_html_events_to_dict(saved_file_path, event_date=date)
+    events_dict = parse_html_events_to_dict(
+        saved_file_path,
+        event_date=date,
+        provider=active_provider,
+    )
     event_count = len(events_dict.get("events", []))
     logger.info(
         "Successfully extracted %d events from the listing page for date %s.",
@@ -94,7 +103,8 @@ async def main() -> None:
     generate_markdown_report(events_data=result_dict)
 
     json_file_path = (
-        get_temporary_directory() / f"events-calgary-{target_date}-page{page_num}.json"
+        EventbriteProvider().get_temporary_directory()
+        / f"events-calgary-{target_date}-page{page_num}.json"
     )
 
     try:

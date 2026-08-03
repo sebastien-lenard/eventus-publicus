@@ -9,7 +9,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from eventus_publicus.providers.eventbrite import load_eventbrite_config
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.utils.config import AppConfig
 
@@ -24,7 +25,7 @@ class BlacklistConfig(BaseModel):
 
 
 class ProviderConfig(BaseModel):
-    """Pydantic model representing Eventbrite provider configuration."""
+    """Pydantic model representing provider configuration."""
 
     blacklists: BlacklistConfig = Field(default_factory=BlacklistConfig)
 
@@ -67,7 +68,12 @@ def _matches_pattern(text: str, pattern: str) -> bool:
 class EventFilterService:
     """Evaluates events against configured title and location blacklists."""
 
-    def __init__(self, config: AppConfig | None = None) -> None:
+    def __init__(
+        self,
+        provider: EventProvider | None = None,
+        config: AppConfig | None = None,
+    ) -> None:
+        self.provider = provider or EventbriteProvider()
         self.config = config
         self.titles: list[str] = []
         self.locations: list[str] = []
@@ -75,9 +81,11 @@ class EventFilterService:
         self._load_config()
 
     def _load_config(self) -> None:
-        """Load and compile blacklists from eventbrite provider config."""
+        """Load and compile blacklists from provider config."""
         current_dir = Path(__file__).resolve().parent
-        config_path = current_dir.parent.parent.parent / "config" / "eventbrite.jsonc"
+        config_path = (
+            current_dir.parent.parent.parent / "config" / f"{self.provider.name}.jsonc"
+        )
 
         if not config_path.exists():
             logger.warning(
@@ -87,15 +95,20 @@ class EventFilterService:
             return
 
         try:
-            raw_data = load_eventbrite_config()
+            raw_data = {}
+            if hasattr(self.provider, "load_provider_config"):
+                raw_data = self.provider.load_provider_config()
+
             provider_config = ProviderConfig.model_validate(raw_data)
 
             self.titles = provider_config.blacklists.titles
             self.locations = provider_config.blacklists.locations
             logger.info(
-                "Loaded %d title rules and %d location rules from blacklist config.",
+                "Loaded %d title rules and %d location rules "
+                "from blacklist config for %s.",
                 len(self.titles),
                 len(self.locations),
+                self.provider.name,
             )
         except Exception:
             logger.exception(

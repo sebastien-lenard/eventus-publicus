@@ -8,7 +8,8 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from eventus_publicus.providers.eventbrite import get_report_filenames
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.utils.config import AppConfig
 from eventus_publicus.utils.date_utils import get_day_initial
@@ -51,9 +52,11 @@ def generate_html_report(
     *,
     events_data: dict[str, list[Event]],
     config: AppConfig | None = None,
+    provider: EventProvider | None = None,
 ) -> None:
     """Generate and write the sorted HTML event report to the downloads folder."""
-    _, filename = get_report_filenames("calgary", config=config)
+    active_provider = provider or EventbriteProvider()
+    _, filename = active_provider.get_report_filenames("calgary", config=config)
 
     download_dir = get_downloads_folder()
     output_path = download_dir / filename

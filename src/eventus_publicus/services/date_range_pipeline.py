@@ -11,10 +11,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from eventus_publicus.providers.eventbrite import (
-    get_cache_file_path,
-    get_temporary_directory,
-)
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.readers.list_reader import check_page_status
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
@@ -71,9 +69,13 @@ async def _load_cached_events(
     date_str: str,
     location: str = "calgary",
     config: AppConfig | None = None,
+    provider: EventProvider | None = None,
 ) -> list[Event] | None:
     """Attempt to load cached events for a given date and location."""
-    date_json_path = get_cache_file_path(date_str, location, config=config)
+    active_provider = provider or EventbriteProvider()
+    date_json_path = active_provider.get_cache_file_path(
+        date_str, location, config=config,
+    )
     if date_json_path.exists():
         logger.info(
             "Loading cached events for date %s (%s) from %s",
@@ -184,14 +186,16 @@ async def scrape_events_for_date_range(
     *,
     options: PipelineOptions | None = None,
     config: AppConfig | None = None,
+    provider: EventProvider | None = None,
 ) -> dict[str, list[Event]]:
     """Scrape multiple pages per date, or load from cache if present."""
     pipeline_options = options or PipelineOptions()
+    active_provider = provider or EventbriteProvider()
     all_accumulated_events: list[Event] = []
     dates = _daterange(start_date, end_date)
 
-    tmp_dir = get_temporary_directory(config=config)
-    filter_service = EventFilterService(config=config)
+    tmp_dir = active_provider.get_temporary_directory(config=config)
+    filter_service = EventFilterService(config=config, provider=active_provider)
     total_dates = len(dates)
     location = "calgary"
 
@@ -200,7 +204,9 @@ async def scrape_events_for_date_range(
             pipeline_options.on_progress(date_str, 1, 1, total_dates, date_idx)
 
         if pipeline_options.use_cache:
-            cached = await _load_cached_events(date_str, location, config=config)
+            cached = await _load_cached_events(
+                date_str, location, config=config, provider=active_provider,
+            )
             if cached is not None:
                 all_accumulated_events.extend(cached)
                 continue
@@ -220,7 +226,9 @@ async def scrape_events_for_date_range(
         logger.info("Completed %s: Found %d total events.", date_str, len(date_events))
         all_accumulated_events.extend(date_events)
 
-        date_json_path = get_cache_file_path(date_str, location, config=config)
+        date_json_path = active_provider.get_cache_file_path(
+            date_str, location, config=config,
+        )
         try:
             serialized = {"events": [ev.model_dump() for ev in date_events]}
             date_json_path.write_text(

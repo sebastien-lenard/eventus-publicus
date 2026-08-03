@@ -10,7 +10,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from eventus_publicus.providers.eventbrite import get_description_overview_selector
+from eventus_publicus.providers.base import EventProvider
+from eventus_publicus.providers.eventbrite import EventbriteProvider
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,12 @@ def _extract_prices(item: dict) -> tuple[float | None, float | None]:
     return None, None
 
 
-def parse_event_page_from_html(soup: BeautifulSoup) -> dict:
+def parse_event_page_from_html(
+    soup: BeautifulSoup,
+    provider: EventProvider | None = None,
+) -> dict:
     """Parse the BeautifulSoup object and extract details."""
+    active_provider = provider or EventbriteProvider()
     full_address = None
     low_price = None
     high_price = None
@@ -62,7 +67,7 @@ def parse_event_page_from_html(soup: BeautifulSoup) -> dict:
             continue
 
     description_html = ""
-    overview_selector = get_description_overview_selector()
+    overview_selector = active_provider.get_description_overview_selector()
     overview_div = soup.find(
         "div",
         class_=lambda c: bool(c and overview_selector in c and "summary" in str(c)),
@@ -79,11 +84,14 @@ def parse_event_page_from_html(soup: BeautifulSoup) -> dict:
     }
 
 
-def parse_event_page(html_file_path: Path) -> dict:
+def parse_event_page(
+    html_file_path: Path,
+    provider: EventProvider | None = None,
+) -> dict:
     """Parse the HTML file and extract address, prices, description."""
     html_content = html_file_path.read_text(encoding="utf-8")
     soup = BeautifulSoup(html_content, "html.parser")
-    return parse_event_page_from_html(soup)
+    return parse_event_page_from_html(soup, provider=provider)
 
 
 def main() -> None:
