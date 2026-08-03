@@ -1,4 +1,4 @@
-# src/eventus-publicus/services/filter_service.py
+# src/eventus_publicus/services/filter_service.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Service to load blacklists and filter events by title and location."""

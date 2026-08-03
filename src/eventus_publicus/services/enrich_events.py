@@ -1,4 +1,4 @@
-# src/eventus-publicus/services/enrich_events.py
+# src/eventus_publicus/services/enrich_events.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Service to enrich Event schemas with detailed information scraped from links."""

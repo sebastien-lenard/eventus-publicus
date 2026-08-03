@@ -1,4 +1,4 @@
-# src/eventus-publicus/utils/math_utils.py
+# src/eventus_publicus/utils/math_utils.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Mathematical and pseudo-random utility functions."""

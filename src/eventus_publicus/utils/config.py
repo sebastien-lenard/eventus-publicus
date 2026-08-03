@@ -1,4 +1,4 @@
-# src/eventus-publicus/utils/config.py
+# src/eventus_publicus/utils/config.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Configuration module using Pydantic-Settings to validate environment variables."""

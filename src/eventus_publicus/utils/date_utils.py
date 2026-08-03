@@ -1,4 +1,4 @@
-# src/eventus-publicus/utils/date_utils.py
+# src/eventus_publicus/utils/date_utils.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Utility functions for date manipulation and formatting."""

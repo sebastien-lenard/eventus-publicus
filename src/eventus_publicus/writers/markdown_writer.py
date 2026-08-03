@@ -1,4 +1,4 @@
-# src/eventus-publicus/writers/markdown_writer.py
+# src/eventus_publicus/writers/markdown_writer.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Module to generate and write formatted markdown event reports."""

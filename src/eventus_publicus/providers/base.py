@@ -1,4 +1,4 @@
-# src/eventus-publicus/providers/base.py
+# src/eventus_publicus/providers/base.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Abstract protocol defining the contract for all event providers."""

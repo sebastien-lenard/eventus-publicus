@@ -1,4 +1,4 @@
-# src/eventus-publicus/schemas/event.py
+# src/eventus_publicus/schemas/event.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Pydantic data model for events."""

@@ -1,4 +1,4 @@
-# src/eventus-publicus/services/date_range_pipeline.py
+# src/eventus_publicus/services/date_range_pipeline.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Multi-date pipeline to scrape pagination series, filter, enrich, save reports."""
@@ -74,7 +74,9 @@ async def _load_cached_events(
     """Attempt to load cached events for a given date and location."""
     active_provider = provider or EventbriteProvider()
     date_json_path = active_provider.get_cache_file_path(
-        date_str, location, config=config,
+        date_str,
+        location,
+        config=config,
     )
     if date_json_path.exists():
         logger.info(
@@ -205,7 +207,10 @@ async def scrape_events_for_date_range(
 
         if pipeline_options.use_cache:
             cached = await _load_cached_events(
-                date_str, location, config=config, provider=active_provider,
+                date_str,
+                location,
+                config=config,
+                provider=active_provider,
             )
             if cached is not None:
                 all_accumulated_events.extend(cached)
@@ -227,7 +232,9 @@ async def scrape_events_for_date_range(
         all_accumulated_events.extend(date_events)
 
         date_json_path = active_provider.get_cache_file_path(
-            date_str, location, config=config,
+            date_str,
+            location,
+            config=config,
         )
         try:
             serialized = {"events": [ev.model_dump() for ev in date_events]}

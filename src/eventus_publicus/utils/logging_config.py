@@ -1,4 +1,4 @@
-# src/eventus-publicus/utils/logging_config.py
+# src/eventus_publicus/utils/logging_config.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 """Centralized logging configuration module using Rich handler."""
