@@ -1,3 +1,3 @@
-# src/eventus_publicus/collectors/__init__.py
+# src/eventus_publicus/fetchers/__init__.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0

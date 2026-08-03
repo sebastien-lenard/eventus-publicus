@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 
-from eventus_publicus.collectors.scraper import fetch_page_content
+from eventus_publicus.fetchers.scraper import fetch_page_content
 from eventus_publicus.parsers.list_reader import parse_html_events_to_dict
 from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider

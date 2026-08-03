@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from playwright.async_api import Error as PlaywrightError
 
-from eventus_publicus.collectors.scraper import fetch_page_content
+from eventus_publicus.fetchers.scraper import fetch_page_content
 from eventus_publicus.parsers.event_reader import parse_event_page_from_html
 from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider
