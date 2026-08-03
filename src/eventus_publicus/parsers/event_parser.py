@@ -1,4 +1,4 @@
-# src/eventus_publicus/parsers/event_reader.py
+# src/eventus_publicus/parsers/event_parser.py
 # SPDX-FileCopyrightText: 2026 Sebastien Lenard <sebastien.lenard@gmail.com> and Contributors
 # SPDX-License-Identifier: Apache-2.0
 
