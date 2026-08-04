@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from eventus_publicus.providers.base import EventProvider
 from eventus_publicus.providers.eventbrite import EventbriteProvider
 from eventus_publicus.schemas.event import Event
-from eventus_publicus.utils.config import AppConfig
+from eventus_publicus.utils.config import AppConfig, get_config
 from eventus_publicus.utils.date_utils import get_day_initial
 from eventus_publicus.writers.markdown_writer import get_downloads_folder
 
@@ -51,12 +51,16 @@ def _format_description_html(html_content: str, max_length: int = 150) -> str:
 def generate_html_report(
     *,
     events_data: dict[str, list[Event]],
+    city: str | None = None,
     config: AppConfig | None = None,
     provider: EventProvider | None = None,
 ) -> None:
     """Generate and write the sorted HTML event report to the downloads folder."""
     active_provider = provider or EventbriteProvider()
-    _, filename = active_provider.get_report_filenames("calgary", config=config)
+    cfg = config or get_config()
+    target_city = city or cfg.default_city
+
+    _, filename = active_provider.get_report_filenames(target_city, config=cfg)
 
     download_dir = get_downloads_folder()
     output_path = download_dir / filename
@@ -98,12 +102,13 @@ def generate_html_report(
         )
 
     table_rows = "\n".join(rows)
+    formatted_city_title = html.escape(target_city.replace("-", " ").title())
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Eventbrite Calgary Events Report</title>
+    <title>Eventbrite {formatted_city_title} Events Report</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -152,7 +157,7 @@ def generate_html_report(
     </style>
 </head>
 <body>
-    <h1>Eventbrite Calgary Events Report</h1>
+    <h1>Eventbrite {formatted_city_title} Events Report</h1>
     <table>
         <thead>
             <tr>

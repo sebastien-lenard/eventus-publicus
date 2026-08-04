@@ -18,6 +18,7 @@ from eventus_publicus.schemas.event import Event
 from eventus_publicus.services.enrich_events import enrich_event_details
 from eventus_publicus.services.filter_service import EventFilterService
 from eventus_publicus.services.page_pipeline import (
+    PageOptions,
     scrape_and_enrich_events_for_date,
 )
 from eventus_publicus.utils.config import AppConfig
@@ -31,6 +32,8 @@ class PipelineOptions:
 
     enrich: bool = True
     use_cache: bool = True
+    country: str | None = None
+    city: str = "calgary"
     on_progress: Callable[[str, int, int, int, int], None] | None = None
 
 
@@ -126,7 +129,11 @@ async def _scrape_single_date(ctx: ScrapeContext) -> list[Event]:
         result_dict = await scrape_and_enrich_events_for_date(
             page_number,
             ctx.date_str,
-            enrich=False,
+            options=PageOptions(
+                enrich=False,
+                country=ctx.options.country,
+                city=ctx.options.city,
+            ),
             config=ctx.config,
         )
 
@@ -140,7 +147,7 @@ async def _scrape_single_date(ctx: ScrapeContext) -> list[Event]:
 
             if has_no_results:
                 logger.info(
-                    "Encountered 'Nothing matched your search' on page %d.",
+                    "Encountered zero results or not found status on page %d.",
                     page_number,
                 )
                 break
@@ -199,7 +206,7 @@ async def scrape_events_for_date_range(
     tmp_dir = active_provider.get_temporary_directory(config=config)
     filter_service = EventFilterService(config=config, provider=active_provider)
     total_dates = len(dates)
-    location = "calgary"
+    location = pipeline_options.city
 
     for date_idx, date_str in enumerate(dates, start=1):
         if pipeline_options.on_progress:
@@ -274,7 +281,7 @@ async def main() -> None:
     full_result_dict = await scrape_events_for_date_range(
         start_date,
         end_date,
-        options=PipelineOptions(enrich=False, use_cache=True),
+        options=PipelineOptions(enrich=False, use_cache=True, city="calgary"),
     )
     events = full_result_dict.get("events", [])
 

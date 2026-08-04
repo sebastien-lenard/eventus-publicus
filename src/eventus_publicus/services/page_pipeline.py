@@ -6,6 +6,7 @@
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 
 from eventus_publicus.fetchers.scraper import fetch_page_content
 from eventus_publicus.parsers.list_parser import parse_html_events_to_dict
@@ -19,17 +20,32 @@ from eventus_publicus.writers.markdown_writer import generate_markdown_report
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class PageOptions:
+    """Options controlling single-page scraping and enrichment behavior."""
+
+    enrich: bool = True
+    country: str | None = None
+    city: str = "calgary"
+
+
 async def scrape_and_enrich_events_for_date(
     page_number: int,
     date: str,
     *,
-    enrich: bool = True,
+    options: PageOptions | None = None,
     provider: EventProvider | None = None,
     config: AppConfig | None = None,
 ) -> dict[str, list[Event]]:
     """Construct search URL, scrape list, parse events, and optionally enrich."""
+    page_opts = options or PageOptions()
     active_provider = provider or EventbriteProvider()
-    target_url = active_provider.build_event_list_url(page_number, date)
+    target_url = active_provider.build_event_list_url(
+        page_number,
+        date,
+        country=page_opts.country,
+        city=page_opts.city,
+    )
     logger.info("Generated target event list URL: %s", target_url)
 
     html_content = await fetch_page_content(
@@ -73,7 +89,7 @@ async def scrape_and_enrich_events_for_date(
         date,
     )
 
-    if not enrich:
+    if not page_opts.enrich:
         logger.info("Enrichment is deactivated by flag. Returning base event list.")
         return events_dict
 
@@ -84,14 +100,20 @@ async def main() -> None:
     """Execute pipeline for page 1, date 2027-12-01, saving report & printing events."""
     page_num = 1
     target_date = "2027-12-01"
+    city = "calgary"
 
     logger.info(
-        "Starting pipeline execution for Page: %d, Date: %s",
+        "Starting pipeline execution for Page: %d, Date: %s, City: %s",
         page_num,
         target_date,
+        city,
     )
 
-    result_dict = await scrape_and_enrich_events_for_date(page_num, target_date)
+    result_dict = await scrape_and_enrich_events_for_date(
+        page_num,
+        target_date,
+        options=PageOptions(city=city),
+    )
     events: list[Event] = result_dict.get("events", [])
 
     if not events:
@@ -104,7 +126,7 @@ async def main() -> None:
 
     json_file_path = (
         EventbriteProvider().get_temporary_directory()
-        / f"events-calgary-{target_date}-page{page_num}.json"
+        / f"events-{city}-{target_date}-page{page_num}.json"
     )
 
     try:

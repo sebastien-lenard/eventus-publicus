@@ -15,6 +15,8 @@ class AppConfig(BaseSettings):
     tmp_subfolder: str = "{provider}-eventus-publicus"
     playwright_wait_timeout_ms: int = 5000
     output_filename: str = "{provider}-{location}-events.{ext}"
+    default_country: str | None = "canada"
+    default_city: str = "calgary"
 
     model_config = SettingsConfigDict(
         env_file=".env",

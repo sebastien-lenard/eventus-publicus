@@ -96,6 +96,18 @@ def _validate_date(
     help="End date (YYYY-MM-DD). Defaults to following Sunday.",
 )
 @click.option(
+    "--country",
+    type=click.STRING,
+    default=None,
+    help="Country or state code (e.g., canada, co). Defaults to config/.env value.",
+)
+@click.option(
+    "--city",
+    type=click.STRING,
+    default=None,
+    help="City or town name (e.g., calgary, denver). Defaults to config/.env value.",
+)
+@click.option(
     "--cache/--no-cache",
     default=True,
     help="Use cached JSON results if available (default: enabled).",
@@ -114,16 +126,18 @@ def _validate_date(
     default="WARNING",
     help="Set the logging level for diagnostics (default: WARNING).",
 )
-def main(
-    start: str | None,
-    end: str | None,
-    *,
-    cache: bool,
-    enrich: bool,
-    log_level: str,
-) -> None:
-    """Scrape, filter, enrich, and report events for a date range."""
-    numeric_level = getattr(logging, log_level.upper(), logging.WARNING)
+def main(**_kwargs: object) -> None:
+    """Scrape, filter, enrich, and report events for a date range and location."""
+    ctx = click.get_current_context()
+    start = ctx.params.get("start")
+    end = ctx.params.get("end")
+    country = ctx.params.get("country")
+    city = ctx.params.get("city")
+    cache = ctx.params.get("cache", True)
+    enrich = ctx.params.get("enrich", True)
+    log_level = ctx.params.get("log_level", "WARNING")
+
+    numeric_level = getattr(logging, str(log_level).upper(), logging.WARNING)
     setup_logging(level=numeric_level)
 
     config = get_config()
@@ -132,14 +146,20 @@ def main(
     start_date = start or default_start
     end_date = end or default_end
 
+    target_country = country if country is not None else config.default_country
+    target_city = city if city is not None else config.default_city
+
     if start_date > end_date:
         err_msg = f"Start date ({start_date}) cannot be after end date ({end_date})."
         raise click.BadParameter(err_msg)
 
     click.echo(f"📅 Date Range: {start_date} to {end_date}")
+    click.echo(
+        f"📍 Location: {f'{target_country} / ' if target_country else ''}{target_city}",
+    )
     click.echo(f"📦 Cache: {'Enabled' if cache else 'Disabled'}")
     click.echo(f"🔍 Enrichment: {'Enabled' if enrich else 'Disabled'}")
-    click.echo(f"📝 Log Level: {log_level.upper()}")
+    click.echo(f"📝 Log Level: {str(log_level).upper()}")
     click.echo("-" * 40)
 
     async def run_pipeline() -> dict:
@@ -184,6 +204,8 @@ def main(
                 options=PipelineOptions(
                     enrich=enrich,
                     use_cache=cache,
+                    country=target_country,
+                    city=target_city,
                     on_progress=update_progress,
                 ),
                 config=config,
@@ -200,13 +222,17 @@ def main(
 
     if not events:
         click.echo(
-            "No events were found across the specified date range.",
+            "No events were found across the specified date range or location.",
             err=True,
         )
         return
 
-    generate_markdown_report(events_data=full_result_dict, config=config)
-    generate_html_report(events_data=full_result_dict, config=config)
+    generate_markdown_report(
+        events_data=full_result_dict,
+        city=target_city,
+        config=config,
+    )
+    generate_html_report(events_data=full_result_dict, city=target_city, config=config)
 
     click.echo(f"\n✨ Success! Processed {len(events)} events.")
     click.echo("📁 Reports successfully saved to your Downloads folder.")

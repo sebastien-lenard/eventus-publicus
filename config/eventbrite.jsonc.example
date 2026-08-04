@@ -1,3 +1,4 @@
+// config/eventbrite.jsonc.example
 {
     // Eventbrite Provider Configuration & Filtering Blacklists
     "blacklists": {

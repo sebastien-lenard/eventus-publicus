@@ -31,6 +31,20 @@ def check_page_status(
     text_content = soup.get_text()
 
     has_no_results = active_provider.check_search_status(text_content)
+    if has_no_results:
+        if (
+            "Whoops, the page or event you are looking for was not found"
+            in text_content
+        ):
+            logger.warning(
+                "Eventbrite returned 'Whoops, the page or event you are looking for was"
+                " not found.' "
+                "The requested location (country/city) might be incorrect or "
+                "unsupported. "
+                "Check your search parameters or try testing the URL directly.",
+            )
+        else:
+            logger.info("Search status check: No results found on page.")
 
     current_page = 1
     total_pages = 1

@@ -4,6 +4,7 @@
 """Provides specific configurations, selectors, and helper functions for Eventbrite."""
 
 import json
+import logging
 import re
 import tempfile
 from contextlib import suppress
@@ -16,9 +17,10 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from eventus_publicus.schemas.event import Event
 from eventus_publicus.utils.config import AppConfig, get_config
 
+logger = logging.getLogger(__name__)
+
 PROVIDER_NAME = "eventbrite"
-URL_BASE = "https://www.eventbrite.ca"
-URL_PATH = "/d/canada--calgary/all-events/"
+URL_BASE = "https://www.eventbrite.com"
 
 
 class EventbriteProvider:
@@ -31,7 +33,6 @@ class EventbriteProvider:
         """Validate if the domain belongs to Eventbrite using a secure regex."""
         if not domain:
             return False
-        # Ensures eventbrite is the root domain with valid TLDs/ccSLDs
         pattern = (
             r"^(?:[a-zA-Z0-9-]+\.)*eventbrite\.(?:com|ca|co\.uk|com\.au|"
             r"[a-z]{2}(?:\.[a-z]{2})?)$"
@@ -81,8 +82,13 @@ class EventbriteProvider:
         return "div[class*='Overview-module-scss-module__']"
 
     def check_search_status(self, text_content: str) -> bool:
-        """Check if page indicates zero search results."""
-        return "Nothing matched your search" in text_content
+        """Check if page indicates zero search results or not found page."""
+        has_no_results = "Nothing matched your search" in text_content
+        is_not_found = (
+            "Whoops, the page or event you are looking for was not found"
+            in text_content
+        )
+        return has_no_results or is_not_found
 
     def get_pagination_selector(self) -> str:
         """Return CSS selector for search pagination element."""
@@ -107,12 +113,27 @@ class EventbriteProvider:
     ) -> Path:
         """Construct and return accumulated JSON cache file path."""
         tmp_dir = self.get_temporary_directory(config=config)
-        return tmp_dir / f"events-{location}-{date_str}-accumulated.json"
+        clean_location = location.lower().replace(" ", "-")
+        return tmp_dir / f"events-{clean_location}-{date_str}-accumulated.json"
 
-    def build_event_list_url(self, page_number: int, date: str) -> str:
-        """Construct and return event listing search URL."""
+    def build_event_list_url(
+        self,
+        page_number: int,
+        date: str,
+        country: str | None = None,
+        city: str = "calgary",
+    ) -> str:
+        """Construct and return listing search URL with normalized country/city."""
+        norm_city = city.strip().lower().replace(" ", "-")
+        if country:
+            norm_country = country.strip().lower().replace(" ", "-")
+            path_segment = f"{norm_country}--{norm_city}"
+        else:
+            path_segment = norm_city
+
         return (
-            f"{URL_BASE}{URL_PATH}?page={page_number}&start_date={date}&end_date={date}"
+            f"{URL_BASE}/d/{path_segment}/all-events/"
+            f"?page={page_number}&start_date={date}&end_date={date}"
         )
 
     def get_report_filenames(
@@ -120,17 +141,18 @@ class EventbriteProvider:
         location: str = "calgary",
         config: AppConfig | None = None,
     ) -> tuple[str, str]:
-        """Return default filenames for Markdown and HTML reports."""
+        """Return default filenames for Markdown and HTML reports using city only."""
         cfg = config or get_config()
         template = cfg.output_filename
+        clean_location = location.lower().replace(" ", "-")
         md_filename = template.format(
             provider=self.name,
-            location=location,
+            location=clean_location,
             ext="md",
         )
         html_filename = template.format(
             provider=self.name,
-            location=location,
+            location=clean_location,
             ext="html",
         )
         return md_filename, html_filename

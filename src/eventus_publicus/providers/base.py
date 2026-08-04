@@ -36,7 +36,13 @@ class EventProvider(Protocol):
         """Execute provider-specific smart waits after page navigation."""
         ...
 
-    def build_event_list_url(self, page_number: int, date: str) -> str:
+    def build_event_list_url(
+        self,
+        page_number: int,
+        date: str,
+        country: str | None = None,
+        city: str = "calgary",
+    ) -> str:
         """Construct and return the search listing URL."""
         ...
 
@@ -66,7 +72,7 @@ class EventProvider(Protocol):
         ...
 
     def check_search_status(self, text_content: str) -> bool:
-        """Check if the page indicates zero search results."""
+        """Check if the page indicates zero search results or invalid location."""
         ...
 
     def get_pagination_selector(self) -> str:
