@@ -128,3 +128,22 @@ def test_cli_main_success() -> None:
         mock_md.assert_called_once()
         mock_html.assert_called_once()
         assert "Success! Processed 1 events." in result.output
+
+
+def test_get_default_date_range_when_today_is_monday() -> None:
+    """Verify _get_default_date_range when today is Monday.
+
+    Covers days_until_next_monday == 0 branch.
+    """
+    fixed_now = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)  # Monday
+    with patch("eventus_publicus.__main__.datetime") as mock_dt:
+        mock_dt.now.return_value = fixed_now
+
+        start, end = _get_default_date_range()
+        dt_start = datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=UTC)
+        dt_end = datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=UTC)
+
+        assert dt_start.weekday() == 0
+        assert dt_end.weekday() == 6
+        assert start == "2026-08-10"
+        assert end == "2026-08-16"

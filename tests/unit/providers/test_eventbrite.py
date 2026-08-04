@@ -245,3 +245,18 @@ def test_parse_event_card_exception() -> None:
     mock_card.find.side_effect = AttributeError("Missing")
 
     assert provider.parse_event_card(mock_card) is None
+
+
+def test_build_event_list_url_with_country() -> None:
+    """Verify listing search URL builder includes country when provided."""
+    provider = EventbriteProvider()
+    url = provider.build_event_list_url(
+        1,
+        "2026-08-01",
+        country="United States",
+        city="New York",
+    )
+    assert "united-states--new-york" in url
+    assert "page=1" in url
+    assert "start_date=2026-08-01" in url
+    assert "end_date=2026-08-01" in url

@@ -9,7 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from eventus_publicus.schemas.event import Event
-from eventus_publicus.services.page_pipeline import scrape_and_enrich_events_for_date
+from eventus_publicus.services.page_pipeline import (
+    PageOptions,
+    main,
+    scrape_and_enrich_events_for_date,
+)
 
 
 @pytest.mark.asyncio
@@ -82,7 +86,7 @@ async def test_scrape_and_enrich_no_enrichment(tmp_path: Path) -> None:
         result = await scrape_and_enrich_events_for_date(
             1,
             "2026-08-01",
-            enrich=False,
+            options=PageOptions(enrich=False),
             provider=mock_provider,
         )
         assert len(result["events"]) == 1
@@ -122,8 +126,63 @@ async def test_scrape_and_enrich_with_enrichment(tmp_path: Path) -> None:
         result = await scrape_and_enrich_events_for_date(
             1,
             "2026-08-01",
-            enrich=True,
+            options=PageOptions(enrich=True),
             provider=mock_provider,
         )
         mock_enrich.assert_awaited_once()
         assert len(result["events"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_scrape_and_enrich_with_country(tmp_path: Path) -> None:
+    """Verify scrape_and_enrich_events_for_date passes country option correctly."""
+    mock_provider = MagicMock()
+    mock_provider.build_event_list_url.return_value = "https://example.com/list"
+    mock_provider.get_temporary_directory.return_value = tmp_path
+
+    with (
+        patch(
+            "eventus_publicus.services.page_pipeline.fetch_page_content",
+            new_callable=AsyncMock,
+            return_value="<html></html>",
+        ),
+        patch(
+            "eventus_publicus.services.page_pipeline.parse_html_events_to_dict",
+            return_value={"events": []},
+        ),
+    ):
+        await scrape_and_enrich_events_for_date(
+            1,
+            "2026-08-01",
+            options=PageOptions(country="canada", city="calgary", enrich=False),
+            provider=mock_provider,
+        )
+        mock_provider.build_event_list_url.assert_called_once_with(
+            1,
+            "2026-08-01",
+            country="canada",
+            city="calgary",
+        )
+
+
+@pytest.mark.asyncio
+async def test_page_pipeline_main() -> None:
+    """Verify main function in page_pipeline executes successfully."""
+    event = Event(
+        date="2027-12-01",
+        time="19:00",
+        title="Main Event",
+        link="https://example.com/main",
+    )
+    with (
+        patch(
+            "eventus_publicus.services.page_pipeline.scrape_and_enrich_events_for_date",
+            new_callable=AsyncMock,
+            return_value={"events": [event]},
+        ),
+        patch(
+            "eventus_publicus.services.page_pipeline.generate_markdown_report",
+        ),
+        patch.object(Path, "write_text"),
+    ):
+        await main()

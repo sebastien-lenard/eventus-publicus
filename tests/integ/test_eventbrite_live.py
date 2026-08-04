@@ -39,6 +39,54 @@ async def test_eventbrite_listing_page_live() -> None:
 
 
 @pytest.mark.asyncio
+async def test_eventbrite_custom_location_listing_live() -> None:
+    """Verify listing page loads successfully with custom country and city."""
+    provider = EventbriteProvider()
+    tomorrow = (datetime.now(tz=UTC) + timedelta(days=1)).strftime("%Y-%m-%d")
+    url = provider.build_event_list_url(
+        page_number=1,
+        date=tomorrow,
+        country="canada",
+        city="vancouver",
+    )
+
+    html_content = await fetch_page_content(url, timeout=30000, provider=provider)
+    assert html_content, "Custom location listing page returned empty HTML content."
+
+    soup = BeautifulSoup(html_content, "html.parser")
+    container_selector, _ = provider.get_event_list_card_selectors()
+    container = soup.select_one(container_selector)
+    assert container is not None, (
+        "Event list container not found for custom country/city."
+    )
+
+
+@pytest.mark.asyncio
+async def test_eventbrite_invalid_location_whoops_live() -> None:
+    """Verify an invalid country/city triggers the 'Whoops' not-found message."""
+    provider = EventbriteProvider()
+    tomorrow = (datetime.now(tz=UTC) + timedelta(days=1)).strftime("%Y-%m-%d")
+    url = provider.build_event_list_url(
+        page_number=1,
+        date=tomorrow,
+        country="nonexistentcountry999",
+        city="nonexistentcity999",
+    )
+
+    html_content = await fetch_page_content(url, timeout=30000, provider=provider)
+    assert html_content, "Invalid location page returned empty HTML content."
+
+    soup = BeautifulSoup(html_content, "html.parser")
+    text_content = soup.get_text()
+
+    has_no_results = provider.check_search_status(text_content)
+    assert has_no_results is True, (
+        "Expected zero-results / not-found status for invalid location."
+    )
+    assert "Whoops, the page or event you are looking for was not found" in text_content
+
+
+@pytest.mark.asyncio
 async def test_eventbrite_zero_results_page_live() -> None:
     """Verify historical date (2022-11-01) triggers zero search results status."""
     provider = EventbriteProvider()

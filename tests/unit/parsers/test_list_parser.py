@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for the event list parser module."""
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -217,3 +218,33 @@ def test_parse_html_events_to_dict(tmp_path: Path) -> None:
     assert "events" in result
     assert result["events"][0].title == "Title A"
     assert result["events"][1].title == "Title B"
+
+
+def test_check_page_status_not_found_warning(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify check_page_status logs a warning when the not-found message appears."""
+    html_file = tmp_path / "not_found.html"
+    html_file.write_text(
+        (
+            "<html><body>Whoops, the page or event you are looking for "
+            "was not found.</body></html>"
+        ),
+        encoding="utf-8",
+    )
+
+    mock_provider = MagicMock()
+    mock_provider.check_search_status.return_value = True
+    mock_provider.get_pagination_selector.return_value = ".non-existent"
+
+    with caplog.at_level(logging.WARNING):
+        has_no_results, current_page, total_pages = check_page_status(
+            html_file,
+            provider=mock_provider,
+        )
+
+    assert has_no_results is True
+    assert current_page == 1
+    assert total_pages == 1
+    assert "Whoops, the page or event you are looking for was not found" in caplog.text
