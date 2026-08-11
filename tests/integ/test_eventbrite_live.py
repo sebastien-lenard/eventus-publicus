@@ -37,6 +37,11 @@ async def test_eventbrite_listing_page_live() -> None:
         f"Expected at least one event card using selector '{card_selector}', found 0."
     )
 
+    assert 1 <= len(cards) <= 30, (
+        f"Expected between 1 and 30 cards, but found {len(cards)}. "
+        "Selector might be over-matching nested elements."
+    )
+
 
 @pytest.mark.asyncio
 async def test_eventbrite_custom_location_listing_live() -> None:

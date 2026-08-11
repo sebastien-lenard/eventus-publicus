@@ -96,13 +96,8 @@ class EventbriteProvider:
 
     def get_event_list_card_selectors(self) -> tuple[str, str]:
         """Return CSS selectors for event list container and cards."""
-        container_selector = (
-            "ul[class*='SearchResultPanelContentEventCardList-module__eventList']"
-        )
-        card_selector = (
-            "div[class*='SearchResultPanelContentEventCardList"
-            "-module__map_experiment_event_card']"
-        )
+        container_selector = "ul[class*='SearchResultPanelContentEventCardList']"
+        card_selector = "li > * > div[class*='SearchResultPanelContentEventCard']"
         return container_selector, card_selector
 
     def get_cache_file_path(

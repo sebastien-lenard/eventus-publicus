@@ -31,6 +31,7 @@ eventus-publicus = "eventus_publicus.__main__:main"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.9",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
@@ -46,6 +47,24 @@ markers = [
     "integration: integration and api tests (slower)",
     "unit: unit tests (faster)"
 ]
+
+[tool.basedpyright]
+extraPaths = ["src"]
+typeCheckingMode = "standard" # Options: "basic", "standard", "recommended", "strict"
+
+# Disable rules that complain about unannotated dynamic code
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+
+# Prevent duplicate warnings already handled by Ruff
+reportUnusedImport = "none"
+reportUnusedVariable = "none"
+
+# Optional: Basedpyright can be strict about Any types. 
+# Set to "warning" or "none" if it creates too much noise in existing code.
+reportAny = "none" 
+
 
 [tool.ruff]
 line-length = 88
