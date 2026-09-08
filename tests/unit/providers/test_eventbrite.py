@@ -102,8 +102,8 @@ def test_get_selectors_and_statuses() -> None:
     assert "Pagination" in provider.get_pagination_selector()
 
     container_sel, card_sel = provider.get_event_list_card_selectors()
-    assert "eventList" in container_sel
-    assert "event_card" in card_sel
+    assert "EventCardList" in container_sel
+    assert "SearchResultPanelContentEventCard" in card_sel
 
 
 def test_get_cache_file_path(tmp_path: Path) -> None:

@@ -103,7 +103,7 @@ async def test_enrich_event_empty_html() -> None:
 
 @pytest.mark.asyncio
 async def test_enrich_event_success() -> None:
-    """Verify successful event enrichment updates organizer, address, prices, and description."""
+    """Verify event enrichment updates organizer, address, prices, and description."""
     event = Event(
         date="2026-08-01",
         time="19:00",

@@ -201,7 +201,7 @@ async def test_scrape_single_date_empty_events() -> None:
 
 @pytest.mark.asyncio
 async def test_scrape_events_for_date_range_pipeline(tmp_path: Path) -> None:
-    """Verify scrape_events_for_date_range orchestrates multi-date scraping and deduplication."""
+    """Check scrape_events_for_date_range handles multi-date scraping/deduplication."""
     mock_provider = MagicMock()
     mock_provider.get_temporary_directory.return_value = tmp_path
     mock_provider.get_cache_file_path.return_value = tmp_path / "cache.json"
@@ -246,7 +246,7 @@ async def test_scrape_events_for_date_range_pipeline(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_scrape_events_for_date_range_cache_hit(tmp_path: Path) -> None:
-    """Verify scrape_events_for_date_range uses cache when use_cache=True and cache exists."""
+    """Check scrape_events_for_date_range uses cache."""
     mock_provider = MagicMock()
     mock_provider.get_temporary_directory.return_value = tmp_path
     cache_file = tmp_path / "cache.json"
