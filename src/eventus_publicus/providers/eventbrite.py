@@ -7,7 +7,6 @@ import json
 import logging
 import re
 import tempfile
-from contextlib import suppress
 from pathlib import Path
 
 from bs4 import Tag
@@ -50,19 +49,32 @@ class EventbriteProvider:
         timeout = cfg.playwright_wait_timeout_ms
 
         if "/e/" in url:
-            with suppress(PlaywrightTimeoutError):
+            try:
                 await page.wait_for_selector(
                     "div[class*='Overview-module-scss-module__'][class*='summary']",
                     timeout=timeout,
                 )
+            except PlaywrightTimeoutError:
+                logger.info(
+                    "Selector for event overview description not found on page: %s",
+                    url,
+                )
         else:
-            with suppress(PlaywrightTimeoutError):
+            try:
                 await page.wait_for_selector(
                     "ul[class*='SearchResultPanelContentEventCardList-"
                     "module__'], "
                     "li[class*='Pagination-module__search-pagination"
                     "__navigation-minimal']",
                     timeout=timeout,
+                )
+            except PlaywrightTimeoutError:
+                logger.info(
+                    (
+                        "Selectors for event list container or pagination not found on",
+                        " page: %s",
+                    ),
+                    url,
                 )
 
     def get_temporary_directory(
@@ -79,7 +91,7 @@ class EventbriteProvider:
 
     def get_description_overview_selector(self) -> str:
         """Return CSS selector for description overview block."""
-        return "div[class*='Overview-module-scss-module__']"
+        return "div[class*='Overview-module'][class*='summary']"
 
     def check_search_status(self, text_content: str) -> bool:
         """Check if page indicates zero search results or not found page."""
@@ -97,7 +109,7 @@ class EventbriteProvider:
     def get_event_list_card_selectors(self) -> tuple[str, str]:
         """Return CSS selectors for event list container and cards."""
         container_selector = "ul[class*='SearchResultPanelContentEventCardList']"
-        card_selector = "li > * > div[class*='SearchResultPanelContentEventCard']"
+        card_selector = "li > div[class*='SearchResultPanelContentEventCard']"
         return container_selector, card_selector
 
     def get_cache_file_path(

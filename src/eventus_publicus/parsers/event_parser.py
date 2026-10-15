@@ -54,7 +54,9 @@ def parse_event_page_from_html(
     high_price = None
     organizer = None
 
+    json_ld_found = False
     for script in soup.find_all("script", type="application/ld+json"):
+        json_ld_found = True
         try:
             data = json.loads(script.string or "")
             items = data if isinstance(data, list) else [data]
@@ -66,14 +68,22 @@ def parse_event_page_from_html(
         except (json.JSONDecodeError, TypeError):
             continue
 
+    if not json_ld_found:
+        logger.info("No <script type='application/ld+json'> tags found on event page.")
+
     description_html = ""
     overview_selector = active_provider.get_description_overview_selector()
-    overview_div = soup.find(
-        "div",
-        class_=lambda c: bool(c and overview_selector in c and "summary" in str(c)),
-    )
+    overview_div = soup.select_one(overview_selector)
     if overview_div:
         description_html = "".join(str(child) for child in overview_div.contents)
+    else:
+        logger.info(
+            (
+                "Description overview selector pattern matching '%s' not found on ",
+                "event page.",
+            ),
+            overview_selector,
+        )
 
     return {
         "organizer": organizer,

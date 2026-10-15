@@ -62,6 +62,31 @@ def check_page_status(
             if match:
                 current_page = int(match.group(1))
                 total_pages = int(match.group(2))
+        pagination_elem = soup.select_one(active_provider.get_pagination_selector())
+    if pagination_elem:
+        span_elem = pagination_elem.find("span", {"data-testid": "pagination-string"})
+        if span_elem:
+            full_pagination_text = pagination_elem.get_text(strip=True)
+            match = re.search(
+                r"(\d+)\s*of\s*(\d+)",
+                full_pagination_text,
+                re.IGNORECASE,
+            )
+            if match:
+                current_page = int(match.group(1))
+                total_pages = int(match.group(2))
+        else:
+            logger.info(
+                (
+                    "Pagination element found, but missing span with ",
+                    "data-testid='pagination-string'.",
+                ),
+            )
+    else:
+        logger.info(
+            "Pagination selector '%s' not found on listing page.",
+            active_provider.get_pagination_selector(),
+        )
 
     return has_no_results, current_page, total_pages
 
@@ -99,10 +124,19 @@ def parse_html_events(
     event_list = soup.select_one(container_selector)
 
     if not event_list or not isinstance(event_list, Tag):
-        logger.warning("Target event list container not found in HTML.")
+        logger.warning(
+            "Target event list container selector '%s' not found in HTML.",
+            container_selector,
+        )
         return []
 
     cards = event_list.select(card_selector)
+    if not cards:
+        logger.info(
+            "Event list container found, but card selector '%s' matched zero elements.",
+            card_selector,
+        )
+        return []
 
     return [
         ev
